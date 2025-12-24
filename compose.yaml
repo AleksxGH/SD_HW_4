@@ -1,0 +1,61 @@
+﻿services:
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  orders-service:
+    build:
+      context: ./OrdersService
+    container_name: orders-service
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Default: Data Source=/data/orders.db
+      RabbitMQ__Host: rabbitmq
+    volumes:
+      - orders-data:/data
+    ports:
+      - "8081:8080"
+
+  payments-service:
+    build:
+      context: ./PaymentsService
+    container_name: payments-service
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Default: Data Source=/data/payments.db
+      RabbitMQ__Host: rabbitmq
+    volumes:
+      - payments-data:/data
+    ports:
+      - "8082:8080"
+
+  gateway:
+    build:
+      context: ./Gateway
+    container_name: gateway
+    depends_on:
+      - orders-service
+      - payments-service
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+    ports:
+      - "8080:8080"
+
+volumes:
+  orders-data:
+  payments-data:
